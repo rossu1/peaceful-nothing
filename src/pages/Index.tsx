@@ -19,7 +19,6 @@ const formatHuman = (seconds: number): string => {
 const CIRCLE_RADIUS = 120;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
-// Gentle color journey: neutral → blue → teal → green → gold
 const getStrokeColor = (seconds: number): string => {
   const stages = [
     { time: 0, h: 0, s: 0, l: 10 },
@@ -41,13 +40,23 @@ const getStrokeColor = (seconds: number): string => {
   return `hsl(${from.h + (to.h - from.h) * ease}, ${from.s + (to.s - from.s) * ease}%, ${from.l + (to.l - from.l) * ease}%)`;
 };
 
+const MOODS = [
+  { id: "rain", label: "rain", prompt: "Gentle rain falling on leaves and rooftops, soft ambient rain sounds, peaceful and calming, no music, pure nature recording feel" },
+  { id: "bowls", label: "bowls", prompt: "Tibetan singing bowls meditation, resonant harmonics, deep calming vibrations, slow and meditative, no percussion, pure bowl tones" },
+  { id: "ocean", label: "ocean", prompt: "Soft ocean waves gently lapping on a shore, distant seagulls, peaceful coastal ambient soundscape, calming and meditative" },
+  { id: "forest", label: "forest", prompt: "Gentle forest ambience, soft birdsong, rustling leaves, distant stream, peaceful woodland atmosphere, no music, pure nature" },
+  { id: "drone", label: "drone", prompt: "Soft ambient meditation music, gentle drones and pads, peaceful calming atmosphere, no percussion, slow evolving warm textures" },
+] as const;
+
+type MoodId = typeof MOODS[number]["id"];
 type Phase = "idle" | "running" | "done";
-type MusicState = "off" | "loading" | "playing" | "error";
+type MusicState = "off" | "picking" | "loading" | "playing" | "error";
 
 const Index = () => {
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [musicState, setMusicState] = useState<MusicState>("off");
+  const [activeMood, setActiveMood] = useState<MoodId | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -63,13 +72,17 @@ const Index = () => {
         audio.pause();
         audio.volume = 1;
         setMusicState("off");
+        setActiveMood(null);
       }
     }, 100);
   }, []);
 
-  const generateAndPlayMusic = useCallback(async () => {
-    if (musicState === "loading" || musicState === "playing") return;
+  const generateAndPlayMusic = useCallback(async (moodId: MoodId) => {
+    const mood = MOODS.find((m) => m.id === moodId);
+    if (!mood) return;
+
     setMusicState("loading");
+    setActiveMood(moodId);
 
     try {
       const response = await fetch(
@@ -81,10 +94,7 @@ const Index = () => {
             apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({
-            prompt: "Soft ambient meditation music, gentle drones and pads, peaceful calming atmosphere, no percussion, slow evolving warm textures, suitable for deep relaxation",
-            duration: 120,
-          }),
+          body: JSON.stringify({ prompt: mood.prompt, duration: 120 }),
         }
       );
 
@@ -99,10 +109,8 @@ const Index = () => {
       audio.loop = true;
       audio.volume = 0;
       audioRef.current = audio;
-
       await audio.play();
 
-      // Fade in
       const fadeIn = setInterval(() => {
         if (audio.volume < 0.45) {
           audio.volume = Math.min(0.5, audio.volume + 0.05);
@@ -115,17 +123,23 @@ const Index = () => {
     } catch (err) {
       console.error("Music error:", err);
       setMusicState("error");
-      setTimeout(() => setMusicState("off"), 3000);
+      setTimeout(() => { setMusicState("off"); setActiveMood(null); }, 3000);
     }
-  }, [musicState]);
+  }, []);
 
-  const toggleMusic = useCallback(() => {
+  const handleAmbientClick = useCallback(() => {
     if (musicState === "playing") {
       fadeOutAudio();
+    } else if (musicState === "picking") {
+      setMusicState("off");
     } else if (musicState === "off" || musicState === "error") {
-      generateAndPlayMusic();
+      setMusicState("picking");
     }
-  }, [musicState, fadeOutAudio, generateAndPlayMusic]);
+  }, [musicState, fadeOutAudio]);
+
+  const handleMoodSelect = useCallback((moodId: MoodId) => {
+    generateAndPlayMusic(moodId);
+  }, [generateAndPlayMusic]);
 
   const stop = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -151,12 +165,11 @@ const Index = () => {
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (audioRef.current) { audioRef.current.pause(); }
+      if (audioRef.current) audioRef.current.pause();
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     };
   }, []);
 
-  // Keep screen awake
   useEffect(() => {
     if (phase === "running" && "wakeLock" in navigator) {
       let lock: WakeLockSentinel | null = null;
@@ -168,9 +181,17 @@ const Index = () => {
   const progress = phase === "running" ? (elapsed % 60) / 60 : phase === "done" ? 1 : 0;
   const dashOffset = CIRCUMFERENCE * (1 - progress);
 
+  const ambientLabel = (() => {
+    if (musicState === "off") return "ambient";
+    if (musicState === "picking") return "cancel";
+    if (musicState === "loading") return "generating…";
+    if (musicState === "playing") return `${activeMood} ·  stop`;
+    if (musicState === "error") return "retry";
+    return "ambient";
+  })();
+
   return (
     <div className="h-svh w-full flex flex-col items-center select-none overflow-hidden bg-background">
-      {/* Nothing heading */}
       <motion.h1
         className="mt-[15vh] font-extralight tracking-tighter text-foreground"
         style={{ fontSize: "clamp(4rem, 15vw, 8rem)" }}
@@ -180,7 +201,6 @@ const Index = () => {
         Nothing
       </motion.h1>
 
-      {/* Clock */}
       <motion.div
         className="mt-[10vh] relative flex items-center justify-center cursor-pointer"
         style={{ width: 256, height: 256 }}
@@ -214,21 +234,47 @@ const Index = () => {
         </span>
       </motion.div>
 
-      {/* Music toggle — minimal text button */}
-      <motion.button
-        className="mt-8 text-muted-foreground bg-transparent border-none cursor-pointer"
-        style={{ fontSize: "0.8rem", letterSpacing: "0.05em", fontWeight: 400 }}
-        onClick={(e) => { e.stopPropagation(); toggleMusic(); }}
-        whileTap={{ scale: 0.95 }}
-        animate={{ opacity: musicState === "loading" ? 0.4 : 0.6 }}
-        whileHover={{ opacity: 1 }}
-        transition={{ duration: 0.3 }}
-      >
-        {musicState === "off" && "ambient"}
-        {musicState === "loading" && "generating…"}
-        {musicState === "playing" && "silence"}
-        {musicState === "error" && "retry"}
-      </motion.button>
+      {/* Ambient controls */}
+      <div className="mt-8 flex flex-col items-center gap-3">
+        <motion.button
+          className="text-muted-foreground bg-transparent border-none cursor-pointer"
+          style={{ fontSize: "0.8rem", letterSpacing: "0.05em", fontWeight: 400 }}
+          onClick={(e) => { e.stopPropagation(); handleAmbientClick(); }}
+          whileTap={{ scale: 0.95 }}
+          animate={{ opacity: musicState === "loading" ? 0.4 : 0.6 }}
+          whileHover={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          {ambientLabel}
+        </motion.button>
+
+        {/* Mood picker */}
+        <AnimatePresence>
+          {musicState === "picking" && (
+            <motion.div
+              className="flex gap-4 flex-wrap justify-center"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+            >
+              {MOODS.map((mood) => (
+                <motion.button
+                  key={mood.id}
+                  className="text-muted-foreground bg-transparent border border-border rounded-full px-4 py-1.5 cursor-pointer"
+                  style={{ fontSize: "0.75rem", letterSpacing: "0.04em", fontWeight: 400 }}
+                  onClick={(e) => { e.stopPropagation(); handleMoodSelect(mood.id); }}
+                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ borderColor: "hsl(var(--foreground))", color: "hsl(var(--foreground))" }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {mood.label}
+                </motion.button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Success message */}
       <AnimatePresence>
