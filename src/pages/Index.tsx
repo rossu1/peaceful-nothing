@@ -19,6 +19,30 @@ const formatHuman = (seconds: number): string => {
 const CIRCLE_RADIUS = 120;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
+// Gentle color journey: neutral → blue → teal → green → gold
+const getStrokeColor = (seconds: number): string => {
+  const stages = [
+    { time: 0, h: 0, s: 0, l: 10 },       // neutral
+    { time: 30, h: 210, s: 30, l: 40 },    // soft blue
+    { time: 120, h: 180, s: 35, l: 38 },   // teal
+    { time: 300, h: 150, s: 30, l: 35 },   // sage green
+    { time: 600, h: 42, s: 45, l: 45 },    // warm gold
+  ];
+  
+  let i = 0;
+  while (i < stages.length - 1 && seconds >= stages[i + 1].time) i++;
+  if (i >= stages.length - 1) return `hsl(${stages[stages.length - 1].h}, ${stages[stages.length - 1].s}%, ${stages[stages.length - 1].l}%)`;
+  
+  const from = stages[i];
+  const to = stages[i + 1];
+  const t = (seconds - from.time) / (to.time - from.time);
+  const ease = t * t * (3 - 2 * t); // smoothstep
+  const h = from.h + (to.h - from.h) * ease;
+  const s = from.s + (to.s - from.s) * ease;
+  const l = from.l + (to.l - from.l) * ease;
+  return `hsl(${h}, ${s}%, ${l}%)`;
+};
+
 type Phase = "idle" | "running" | "done";
 
 const Index = () => {
@@ -104,13 +128,13 @@ const Index = () => {
             cy={128}
             r={CIRCLE_RADIUS}
             fill="none"
-            stroke="hsl(var(--foreground))"
-            strokeWidth={1}
+            stroke={phase === "idle" ? "hsl(var(--foreground))" : getStrokeColor(elapsed)}
+            strokeWidth={phase === "idle" ? 1 : 1.5}
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={dashOffset}
             strokeLinecap="round"
             transform="rotate(-90 128 128)"
-            style={{ transition: "stroke-dashoffset 1s linear" }}
+            style={{ transition: "stroke-dashoffset 1s linear, stroke 2s ease, stroke-width 0.5s ease" }}
           />
         </svg>
 
