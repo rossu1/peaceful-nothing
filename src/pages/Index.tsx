@@ -1,16 +1,145 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useRef, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const formatTime = (seconds: number): string => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+};
+
+const formatHuman = (seconds: number): string => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m === 0) return `${s} second${s !== 1 ? "s" : ""}`;
+  if (s === 0) return `${m} minute${m !== 1 ? "s" : ""}`;
+  return `${m} minute${m !== 1 ? "s" : ""} and ${s} second${s !== 1 ? "s" : ""}`;
+};
+
+const CIRCLE_RADIUS = 120;
+const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
+
+type Phase = "idle" | "running" | "done";
+
+const Index = () => {
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [elapsed, setElapsed] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stop = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    setPhase("done");
+  }, []);
+
+  const start = useCallback(() => {
+    setElapsed(0);
+    setPhase("running");
+    const startTime = Date.now();
+    intervalRef.current = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 250);
+  }, []);
+
+  const handleTap = useCallback(() => {
+    if (phase === "idle") start();
+    else if (phase === "running") stop();
+    else { setPhase("idle"); setElapsed(0); }
+  }, [phase, start, stop]);
+
+  useEffect(() => {
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  // Keep screen awake
+  useEffect(() => {
+    if (phase === "running" && "wakeLock" in navigator) {
+      let lock: WakeLockSentinel | null = null;
+      (navigator as any).wakeLock.request("screen").then((l: WakeLockSentinel) => { lock = l; }).catch(() => {});
+      return () => { lock?.release(); };
+    }
+  }, [phase]);
+
+  const progress = phase === "running" ? (elapsed % 60) / 60 : phase === "done" ? 1 : 0;
+  const dashOffset = CIRCUMFERENCE * (1 - progress);
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="h-svh w-full flex flex-col items-center select-none overflow-hidden bg-background">
+      {/* Nothing heading */}
+      <motion.h1
+        className="mt-[15vh] font-extralight tracking-tighter text-foreground"
+        style={{ fontSize: "clamp(4rem, 15vw, 8rem)" }}
+        animate={{ opacity: phase === "done" ? 0.1 : 1 }}
+        transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
+      >
+        Nothing
+      </motion.h1>
+
+      {/* Clock */}
+      <motion.div
+        className="mt-[10vh] relative flex items-center justify-center cursor-pointer"
+        style={{ width: 256, height: 256 }}
+        onClick={handleTap}
+        whileTap={{ scale: 0.98 }}
+        animate={phase === "running" ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+        transition={
+          phase === "running"
+            ? { duration: 4, repeat: Infinity, ease: "easeInOut" }
+            : { type: "spring", stiffness: 300, damping: 30 }
+        }
+      >
+        <svg width={256} height={256} className="absolute inset-0">
+          {/* Background circle */}
+          <circle
+            cx={128}
+            cy={128}
+            r={CIRCLE_RADIUS}
+            fill="none"
+            stroke="hsl(var(--muted))"
+            strokeWidth={1}
+          />
+          {/* Progress circle */}
+          <circle
+            cx={128}
+            cy={128}
+            r={CIRCLE_RADIUS}
+            fill="none"
+            stroke="hsl(var(--foreground))"
+            strokeWidth={1}
+            strokeDasharray={CIRCUMFERENCE}
+            strokeDashoffset={dashOffset}
+            strokeLinecap="round"
+            transform="rotate(-90 128 128)"
+            style={{ transition: "stroke-dashoffset 1s linear" }}
+          />
+        </svg>
+
+        {/* Timer text */}
+        <span
+          className="text-foreground tabular-nums"
+          style={{ fontFamily: "'Geist Mono', monospace", fontSize: "1.5rem", fontWeight: 400 }}
+        >
+          {phase === "idle" ? "tap" : formatTime(elapsed)}
+        </span>
+      </motion.div>
+
+      {/* Success message */}
+      <AnimatePresence>
+        {phase === "done" && (
+          <motion.p
+            className="fixed bottom-[10vh] left-0 right-0 text-center text-muted-foreground px-8"
+            style={{ fontSize: "1rem", letterSpacing: "0.02em", fontWeight: 400 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
+          >
+            You have successfully done nothing for {formatHuman(elapsed)}. Well done.
+          </motion.p>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
