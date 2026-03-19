@@ -84,6 +84,15 @@ const Index = () => {
     setMusicState("loading");
     setActiveMood(moodId);
 
+    // Create and unlock audio immediately within user gesture context
+    const audio = new Audio();
+    audio.loop = true;
+    audio.volume = 0;
+    audioRef.current = audio;
+    // Unlock audio context on mobile browsers
+    await audio.play().catch(() => {});
+    audio.pause();
+
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-music`,
@@ -105,10 +114,7 @@ const Index = () => {
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
 
-      const audio = new Audio(url);
-      audio.loop = true;
-      audio.volume = 0;
-      audioRef.current = audio;
+      audio.src = url;
       await audio.play();
 
       const fadeIn = setInterval(() => {
