@@ -302,6 +302,19 @@ const Index = () => {
           </motion.p>
         )}
       </AnimatePresence>
+
+      {/* Tip jar — barely visible */}
+      <a
+        href="https://buy.stripe.com/test_7sY00iaut9Au2qigmi6Ri00"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-4 left-0 right-0 text-center text-muted-foreground"
+        style={{ fontSize: "0.65rem", letterSpacing: "0.06em", fontWeight: 400, opacity: 0.25, transition: "opacity 0.3s ease" }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.6")}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.25")}
+      >
+        support nothing
+      </a>
     </div>
   );
 };
