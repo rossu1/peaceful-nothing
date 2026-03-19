@@ -313,7 +313,7 @@ const Index = () => {
         onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.6")}
         onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.25")}
       >
-        support
+        support nothing
       </a>
     </div>
   );
