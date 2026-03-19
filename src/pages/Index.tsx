@@ -128,13 +128,13 @@ const Index = () => {
             cy={128}
             r={CIRCLE_RADIUS}
             fill="none"
-            stroke="hsl(var(--foreground))"
-            strokeWidth={1}
+            stroke={phase === "idle" ? "hsl(var(--foreground))" : getStrokeColor(elapsed)}
+            strokeWidth={phase === "idle" ? 1 : 1.5}
             strokeDasharray={CIRCUMFERENCE}
             strokeDashoffset={dashOffset}
             strokeLinecap="round"
             transform="rotate(-90 128 128)"
-            style={{ transition: "stroke-dashoffset 1s linear" }}
+            style={{ transition: "stroke-dashoffset 1s linear, stroke 2s ease, stroke-width 0.5s ease" }}
           />
         </svg>
 
