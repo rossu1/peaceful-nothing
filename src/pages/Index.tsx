@@ -160,7 +160,12 @@ const Index = () => {
     intervalRef.current = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime) / 1000));
     }, 250);
-  }, []);
+
+    // Auto-start ambient music if not already playing
+    if (musicState === "off" || musicState === "error") {
+      generateAndPlayMusic("drone");
+    }
+  }, [musicState, generateAndPlayMusic]);
 
   const handleTap = useCallback(() => {
     if (phase === "idle") start();
